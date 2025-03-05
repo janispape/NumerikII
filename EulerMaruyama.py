@@ -57,7 +57,7 @@ def eulermaruyama(a, b, T, u0, h, args=()):
             h = tn - t
 
         # Euler-Schritt
-        un = u + h * a(t, u, *args) + b(t, u, *args) * np.random.normal(0, np.sqrt(h))
+        un = u + h * a(t, u, *args) + b(t, u, *args) * np.random.normal(0, np.sqrt(h), size=len(u))
         nfev += 1
 
         # neuer Zeitpunkt und neue Näherung übernehmen

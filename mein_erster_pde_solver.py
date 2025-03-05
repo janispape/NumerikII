@@ -3,6 +3,8 @@
 # After some research I begin with a 1-dim Finite-Differences-Method
 import numpy as np
 import os
+
+import EulerMaruyama
 import mehrschritt
 import AlphaBeta
 import matplotlib.pyplot as plt
@@ -58,10 +60,7 @@ def finite_differenzen_waermeleitung(f, T, Omega, u0, hx, ht, args=()):
 
     # Modify first and last rows to enforce Neumann condition
     A_h[0, 0] = 1  # Diagonal for first row
-    A_h[0, 1] = -1  # First row enforces zero derivative at left boundary
-
     A_h[-1, -1] = 1  # Diagonal for last row
-    A_h[-1, -2] = -1  # Last row enforces zero derivative at right boundary
 
     A_h = 1/(hx**2) * A_h
 
@@ -73,11 +72,6 @@ def finite_differenzen_waermeleitung(f, T, Omega, u0, hx, ht, args=()):
         f_h = np.zeros(N, dtype=np.float64)
         for i in range(N):
             f_h[i] = f(t, x[i + 1])
-
-        # Compute derivative at boundaries
-        f_h[0] = 0  # Zero derivative at left boundary
-        f_h[-1] = 0  # Zero derivative at right boundary
-
         return -A_h @ u_vector + f_h
 
     # Anfangsbedingung für die inneren Raumpunkte (ohne Ränder)
@@ -86,14 +80,21 @@ def finite_differenzen_waermeleitung(f, T, Omega, u0, hx, ht, args=()):
         # i+1, da die inneren Punkte bei Index 1 bis N im Gesamtgitter liegen
         u0_vector[i] = u0(x[i + 1])
 
-    # eigentliches Verfahren
+    # eigentliches Verfahren im deterministischen Fall:
     # Adams-Moulton-Verfahren anwenden
-    erg_am = mehrschritt.LMMexp_PEC(A_safe, T, u0_vector,
-                                    3,  # k=3 für 3-Schritt-Verfahren
-                                    AlphaBeta.alphaA, AlphaBeta.betaAB,  # Prädiktor
-                                    AlphaBeta.alphaA, AlphaBeta.betaAM,  # Korrektor
-                                    ht,
-                                    3)  # 3 Korrekturen
+    #erg_am = mehrschritt.LMMexp_PEC(A_safe, T, u0_vector,
+    #                                3,  # k=3 für 3-Schritt-Verfahren
+    #                                AlphaBeta.alphaA, AlphaBeta.betaAB,  # Prädiktor
+    #                                AlphaBeta.alphaA, AlphaBeta.betaAM,  # Korrektor
+    #                                ht,
+    #                                3)  # 3 Korrekturen
+
+    # eigentliches Verfahren im stochastischen Fall:
+    # Euler Maruyama nutzen
+    def b(t,x):
+        return 5*np.ones(x.shape, dtype=x.dtype)
+
+    erg_am = EulerMaruyama.eulermaruyama(A_safe, b, T, u0_vector, 0.0001)
 
     # Vollständige Lösung inklusive Randpunkte konstruieren
     # Wir haben nur die inneren Punkte berechnet, müssen also die Randwerte ergänzen
@@ -111,7 +112,7 @@ def finite_differenzen_waermeleitung(f, T, Omega, u0, hx, ht, args=()):
     return Result(y=full_y, t=erg_am.t, x=x, hx=hx, ht=ht, nfev=erg_am.nfev)
 
 
-def create_heat_equation_animation(erg, save_path=None):
+def create_heat_equation_animation(erg, save_path=None, max_frames = 200):
     """
     Create an animation of the heat equation solution
 
@@ -125,6 +126,12 @@ def create_heat_equation_animation(erg, save_path=None):
     y_min = np.min(erg.y)
     y_max = np.max(erg.y)
     padding = 0.1 * (y_max - y_min)
+
+    total_frames = len(erg.t)
+    if total_frames > max_frames:
+        frame_indices = np.linspace(0, total_frames-1, max_frames, dtype=int)
+    else:
+        frame_indices = np.arange(total_frames)
 
     # Set up the plot
     line, = ax.plot(erg.x, erg.y[:, 0])
@@ -151,11 +158,12 @@ def create_heat_equation_animation(erg, save_path=None):
         return line, time_text
 
     # Create the animation
+    # Create the animation
     anim = animation.FuncAnimation(fig, update,
-                                   frames=len(erg.t),
+                                   frames=len(frame_indices),
                                    init_func=init,
                                    blit=True,
-                                   interval=50)  # 50 ms between frames
+                                   interval=100)  # 100 ms between frames
 
     anim.save(save_path, writer='pillow')
     plt.close(fig)
@@ -165,15 +173,20 @@ def create_heat_equation_animation(erg, save_path=None):
 
 if __name__ == "__main__":
     def u(x):
-        return x
+        if x < np.pi * 0.5:
+            return np.cos(25 * x)
+        if x < np.pi * 0.75:
+            return np.cos(12.5 * np.pi) - x + np.pi * 0.5
+        else:
+            return np.cos(12.5 * np.pi) - np.pi * 0.25
 
     def f(t,x):
         return 0
 
-    T = [0, 1]
-    Omega = [0, 1]
+    T = [0, 10]
+    Omega = [0, np.pi]
 
-    hx = 0.05
+    hx = 0.03
     ht = 0.4 * hx**2
     erg = finite_differenzen_waermeleitung(f, T, Omega, u, hx, ht)
     print(erg.y.shape)
