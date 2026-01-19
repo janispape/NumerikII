@@ -76,9 +76,9 @@ if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
     def a(t, u):
-        return (50-u)/((100-u)**2 + u**2)
+        return 5*(5-u)
     def b(t, u, sigma):
-        return sigma
+        return sigma * np.sqrt(np.abs(u + 0.01))
 
     def a_wrapped(t, u):
         return a(t, u, 100, 100)
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     h = 0.01
 
-    erg = eulermaruyama(a, b_wrapped, T, np.array([50]), h)
+    erg = eulermaruyama(a, b_wrapped, T, np.array([0]), h)
 
     plt.plot(erg.t, erg.y.T)
     plt.show()

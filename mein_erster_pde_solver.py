@@ -2,11 +2,7 @@
 # I am nonetheless interested in a naive approach similar to Euler.
 # After some research I begin with a 1-dim Finite-Differences-Method
 import numpy as np
-import os
-
 import EulerMaruyama
-import mehrschritt
-import AlphaBeta
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
