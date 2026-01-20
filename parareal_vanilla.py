@@ -14,9 +14,9 @@ from joblib import Parallel, delayed
 # -----------------------------
 nu = 0.1
 N = 600
-T = 1.0                    # final time
+T = 0.2                    # final time
 slices = 64                # number of time slices (parareal parallelism)
-K = 1                      # parareal iterations (often small for diffusion)
+K = 2                      # parareal iterations (often small for diffusion)
 
 # Grid (interior points only)
 h = 1.0 / (N + 1)
@@ -31,11 +31,11 @@ A = diags([off, main, off], offsets=[-1, 0, 1], shape=(N, N), format="csc") / (h
 def f(t, u):
     return nu * (A @ u)
 
-# Jacobian for Radau: J = nu A  (constant, sparse)
+# Jacobian for Radau: J = nu * A
 J = nu * A
 
 # Initial condition (smooth)
-u0 = np.sin(np.pi * x)  # satisfies Dirichlet BC at boundaries in continuous sense
+u0 = np.cos(2 * np.pi * x)  # satisfies Dirichlet BC
 
 # -----------------------------
 # Time grid
@@ -47,8 +47,7 @@ dt_slice = T / slices
 # -----------------------------
 # Fine and coarse propagators
 # -----------------------------
-# Fine: stiff accurate solve on [t0,t1] using Radau
-# For linear problems, Radau still does Newton solves; providing jacobian helps a lot.
+# Fine: stiff accurate solve on [t0,t1] using Radau.
 fine_atol = 1e-9
 fine_rtol = 1e-7
 
@@ -57,7 +56,7 @@ def fine(t_start, t_end, u_start):
         f, (t_start, t_end), u_start,
         method="Radau",
         atol=fine_atol, rtol=fine_rtol,
-        jac=J,                 # constant sparse Jacobian
+        jac=J,
         vectorized=False
     )
     return sol.y[:, -1]
@@ -74,7 +73,7 @@ def coarse(t_start, t_end, u_start):
     return M_lu.solve(u_start)
 
 # -----------------------------
-# Baseline: sequential fine solve over slices (like your "Radau per slice")
+# Baseline: sequential fine solve over slices
 # -----------------------------
 U_fine_seq = np.zeros((slices + 1, N))
 U_fine_seq[0] = u0
@@ -147,13 +146,14 @@ end_para = time.time()
 print(f"Parareal total wall time (init + {K} iters): {end_para - start_para:.3f} s")
 
 # -----------------------------
-# Quick sanity/visualization: compare endpoint and show a space profile
+# Visualization: compare endpoint and show a space profile
 # -----------------------------
 err_final = np.linalg.norm(U_para[-1] - U_fine_seq[-1]) / (np.linalg.norm(U_fine_seq[-1]) + 1e-16)
 print(f"Relative difference at final time (parareal vs seq fine): {err_final:.3e}")
 
 plt.figure()
-#plt.plot(x, U_fine_seq[-1], label="Sequential fine (Radau)")
+plt.plot(x, u0, label="initial condition")
+plt.plot(x, U_fine_seq[-1], label="Sequential fine (Radau)")
 plt.plot(x, U_para[-1], "--", label=f"Parareal (K={K})")
 plt.xlabel("x")
 plt.ylabel("u(x,T)")
